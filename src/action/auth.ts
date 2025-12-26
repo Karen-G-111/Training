@@ -1,7 +1,9 @@
 'use server'
 
+import { sql } from '@/lib/db'
 import { SignupFormSchema, FormState } from '@/lib/definitions'
 import { z } from "zod"
+import bcrypt from 'bcryptjs'
 
 export async function signup(state: FormState, formData: FormData) {
     // Проверка полей формы
@@ -18,5 +20,17 @@ export async function signup(state: FormState, formData: FormData) {
         }
     }
 
-    // Вызываем провайдера или базу данных для создания пользователя...
+    const hashedPassword = await bcrypt.hash(validatedFields.data.password, 10)
+
+    try {
+        await sql`INSERT INTO users (login, password)
+            VALUES (${validatedFields.data.email}, ${hashedPassword});`
+    } catch (e: any) {
+        if (e?.code === '23505' && e?.constraint_name === 'users_login_key')
+            return {
+                errors: { email: ['Пользователь с таким email уже существует'] },
+            }
+        else
+            throw new e
+    }
 }
